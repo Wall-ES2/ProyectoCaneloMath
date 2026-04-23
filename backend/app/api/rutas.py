@@ -2,6 +2,7 @@ from fastapi import APIRouter, File, UploadFile
 from app.models.esquemas import PeticionNewton, PeticionBiseccion, PeticionRegulaFalsi, PeticionSecante, PeticionPuntoFijo
 from app.services.metodos_numericos import newthon_raphson, biseccion, regula_falsi, secante, punto_fijo
 from app.services.ia.vision import extraer_ecuacion_de_imagen
+from app.services.ia.recomendador import recomendar_metodo
 
 router = APIRouter()
 
@@ -60,11 +61,26 @@ def calcular_secante(datos: PeticionSecante):
 
 @router.post("/ia/analizar-foto")
 async def analizar_foto(file: UploadFile = File(...)):  #async para que cuando se carga la imagen las demas funciones no se queden colgadas esperando a que termine esta
+    if not file:
+        return {"exito": False, "mensaje": "No se recibio ningun archivo."}
+    if file.content_type and not file.content_type.startswith("image/"):
+        return {"exito": False, "mensaje": "El archivo debe ser una imagen (jpg, png, etc.)."}
+
     #Leer los datos crudos de la foto
     contenido_bytes = await file.read()
+    if not contenido_bytes:
+        return {"exito": False, "mensaje": "La imagen esta vacia o no se pudo leer."}
 
     #Envio a gemini
     resultado = extraer_ecuacion_de_imagen(contenido_bytes)
 
     #Devolvemos la ecuacion extraida (O el mensaje de error)
     return resultado
+
+
+@router.post("/ia/recomendar-metodo")
+def recomendar_metodo_para_ecuacion(datos: dict):
+    funcion = (datos.get("funcion") or "").strip()
+    if not funcion:
+        return {"exito": False, "mensaje": "Debes enviar una funcion para analizar."}
+    return recomendar_metodo(funcion)

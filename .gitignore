@@ -1,0 +1,59 @@
+# Node.js
+node_modules/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+lerna-debug.log*
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Build outputs
+dist/
+build/
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.pytype/
+.mypy_cache/
+.env
+.venv/
+venv/
+ENV/
+env/
+
+# IDE / editor
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Misc
+*.local
+coverage/
+*.cover
+coverage.*
+*.egg-info/
+.eggs/
+
+# Frontend
+/dist-ssr/
+/public/
+
+# Logs
+logs/
+
+# OS
+Thumbs.db
+
+# Optional: ignore backend VM files if present
+*.sqlite3
+*.db
