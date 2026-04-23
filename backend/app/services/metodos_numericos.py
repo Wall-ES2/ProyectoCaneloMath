@@ -251,49 +251,127 @@ def regula_falsi(funcion_str: str, a: float, b: float, tol: float = 1e-10, max_i
     }
 
 
-def secante(funcion_str: str, x0: float, x1: float, tol: float = 1e-10, max_iter: int = 100):
-    x = sp.Symbol("x")
+def secante(funcion_str: str, x0: float, x1: float, tol: float=1e-10, max_iter: int=100):
+    x = sp.Symbol('x')
 
     try:
         f_expr = sp.sympify(funcion_str)
     except Exception as e:
-        return {"exito": False, "mensaje": f"Error al procesar la funcion: {str(e)}"}
+        return {
+            "exito": False,
+            "mensaje": f"Error al procesar la función: {str(e)}"
+        }
+    
+    f = sp.lambdify(x, f_expr, 'numpy')
+    
+    # --- ALGORITMO DE BARRIDO (SWEEPING) ---
+    min_x = min(x0, x1)
+    max_x = max(x0, x1)
+    
+    # Hacemos el barrido dinámico: 1000 pasos por CADA unidad de distancia.
+    # Si la distancia es 11 (de -5 a 6), dará 11,000 pasos.
+    # El tamaño del paso ahora será 0.001 (infinitamente menor a 0.0314, ¡no se nos escapará ninguna raíz!)
+    distancia = max_x - min_x
+    pasos = int(distancia * 1000) 
+    
+    # Para evitar que el usuario ponga (x0=1, x1=1.001) y pasos quede en 0, ponemos un mínimo de 200
+    if pasos < 200:
+        pasos = 200
+        
+    puntos_escaneo = np.linspace(min_x, max_x, pasos)
+    
+    raices_encontradas = []
+    iteraciones_globales = []
 
-    f = sp.lambdify(x, f_expr, "numpy")
-    iteraciones = []
+    # Cazamos cambios de signo a lo largo del intervalo
+    for i in range(len(puntos_escaneo) - 1):
+        p_actual = puntos_escaneo[i]
+        p_siguiente = puntos_escaneo[i+1]
+        
+        f_actual = float(f(p_actual))
+        f_siguiente = float(f(p_siguiente))
+        
+        # Si hay cambio de signo, atrapamos la raíz ejecutando Secante Clásica
+        if f_actual * f_siguiente <= 0:
+            x_prev = p_actual
+            x_curr = p_siguiente
+            
+            iter_locales = []
+            raiz_local = None
+            
+            for step in range(1, max_iter + 1):
+                fx_curr = float(f(x_curr))
+                fx_prev = float(f(x_prev))
+                
+                # Evitar división por cero
+                if fx_curr - fx_prev == 0:
+                    break 
+                
+                # Fórmula clásica de la Secante
+                x_next = x_curr - (fx_curr * (x_curr - x_prev)) / (fx_curr - fx_prev)
+                fx_next = float(f(x_next))
+                error = abs(x_next - x_curr)
+                
+                iter_locales.append({
+                    "iteracion": step,
+                    "x0": x_prev,
+                    "x1": x_curr,
+                    "x2": x_next,
+                    "f_x2": fx_next,
+                    "error": error
+                })
+                
+                # Criterio de parada
+                if error < tol or fx_next == 0:
+                    raiz_local = x_next
+                    break
+                    
+                x_prev = x_curr
+                x_curr = x_next
+            
+            # Verificamos que la raíz no sea un duplicado de otra cercana
+            if raiz_local is not None:
+                es_duplicada = any(abs(r - raiz_local) < 1e-4 for r in raices_encontradas)
+                if not es_duplicada:
+                    raices_encontradas.append(raiz_local)
+                    iteraciones_globales.append(iter_locales)
 
-    for i in range(1, max_iter + 1):
-        f_x0 = float(f(x0))
-        f_x1 = float(f(x1))
+    # Si el barrido falló (porque el usuario puso puntos muy cercanos y no cortan el cero),
+    # ejecutamos la Secante pura por defecto
+    if len(raices_encontradas) == 0:
+        x_prev = x0
+        x_curr = x1
+        iter_locales = []
+        
+        for step in range(1, max_iter + 1):
+            fx_curr = float(f(x_curr))
+            fx_prev = float(f(x_prev))
+            
+            if fx_curr - fx_prev == 0:
+                return {"exito": False, "mensaje": "División por cero. Los puntos tienen igual altura.", "iteraciones": iter_locales}
+            
+            x_next = x_curr - (fx_curr * (x_curr - x_prev)) / (fx_curr - fx_prev)
+            fx_next = float(f(x_next))
+            error = abs(x_next - x_curr)
+            
+            iter_locales.append({
+                "iteracion": step, "x0": x_prev, "x1": x_curr, "x2": x_next, "f_x2": fx_next, "error": error
+            })
+            
+            if error < tol or fx_next == 0:
+                return {"exito": True, "raiz": x_next, "iteraciones": iter_locales}
+                
+            x_prev = x_curr
+            x_curr = x_next
+            
+        return {"exito": False, "mensaje": "El método no convergió.", "iteraciones": iter_locales}
 
-        if f_x1 - f_x0 == 0:
-            return {
-                "exito": False,
-                "mensaje": "Division por cero. Los puntos tienen la misma altura.",
-                "iteraciones": iteraciones,
-            }
-
-        x2 = x1 - (f_x1 * (x1 - x0)) / (f_x1 - f_x0)
-        f_x2 = float(f(x2))
-        error = abs(x2 - x1)
-
-        iteraciones.append({
-            "iteracion": i,
-            "x0": x0,
-            "x1": x1,
-            "x2": x2,
-            "f_x2": f_x2,
-            "error": error,
-        })
-
-        if error < tol or abs(f_x2) <= tol:
-            return {"exito": True, "raiz": x2, "iteraciones": iteraciones}
-
-        x0 = x1
-        x1 = x2
-
-    return {"exito": False, "mensaje": "El metodo no convergio.", "iteraciones": iteraciones}
-
+    # Si todo salió bien, devolvemos múltiples raíces
+    return {
+        "exito": True,
+        "raices": raices_encontradas,
+        "iteraciones_por_raiz": iteraciones_globales
+    }
 
 def punto_fijo(funcion_g_str: str, x0: float, tol: float = 1e-10, max_iter: int = 100):
     x = sp.Symbol("x")

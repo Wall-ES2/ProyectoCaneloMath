@@ -87,7 +87,12 @@ const INFO_METODOS = {
     cuando: 'Úsalo solo si g(x) fue bien despejada y converge cerca de la raíz.'
   }
 };
+
 function App() {
+
+  const [mostrarTodasRaices, setMostrarTodasRaices] = useState(false);
+  const [mostrarTodasIteraciones, setMostrarTodasIteraciones] = useState(false);
+
   const [seccion, setSeccion] = useState('raices'); 
   const [metodo, setMetodo] = useState('biseccion');
   
@@ -207,6 +212,8 @@ function App() {
     setIndiceRaizActiva(0);
     setPasoActual(0);
     setReproduccionActiva(false);
+    setMostrarTodasRaices(false);        
+    setMostrarTodasIteraciones(false);   
   };
 
   const limpiarRecomendacion = () => {
@@ -351,6 +358,30 @@ function App() {
 
   const terminarArrastreGrafico = () => {
     setArrastreGrafico(null);
+  };
+
+  const hacerZoomEnRaiz = (idxRaiz) => {
+    setIndiceRaizActiva(idxRaiz);
+    setPasoActual(0);
+    setReproduccionActiva(false);
+    setMostrarTodasIteraciones(false);  
+
+    if (!resultados || !resultados.raices) return;
+
+    const raizSeleccionada = resultados.raices[idxRaiz];
+
+    if (typeof raizSeleccionada !== 'number' || !Number.isFinite(raizSeleccionada)) return;
+
+    // Reducimos el radio a 0.5 para hacer un zoom extremo.
+    // Esto oculta las demás raíces (puntos verdes) y aísla la zona de convergencia.
+    const radioVision = 0.5; 
+
+    setDominioX([
+      Number((raizSeleccionada - radioVision).toFixed(4)),
+      Number((raizSeleccionada + radioVision).toFixed(4))
+    ]);
+    
+    setDominioYManual(null); 
   };
 
   const crearEvaluadorFuncion = () => {
@@ -646,6 +677,20 @@ function App() {
     }
   };
 
+  // --- LÓGICA DE PAGINACIÓN (MOSTRAR MÁS/MENOS) ---
+  const todasLasRaices = obtenerRaicesMostradas(resultados);
+  const limiteRaices = 15; // Muestra 15 raíces por defecto
+  const raicesVisibles = mostrarTodasRaices ? todasLasRaices : todasLasRaices.slice(0, limiteRaices);
+
+  const todasLasIteraciones = obtenerIteracionesActivas();
+  const limiteIteraciones = 10; // Muestra 10 iteraciones por defecto
+  
+  // Magia UX: Si el reproductor avanza más allá de 10 pasos, la tabla se estira automáticamente
+  const limiteDinamicoIter = Math.max(limiteIteraciones, pasoActual + 1); 
+  const iteracionesVisibles = mostrarTodasIteraciones ? todasLasIteraciones : todasLasIteraciones.slice(0, limiteDinamicoIter);
+
+
+
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 font-sans text-zinc-900 dark:text-zinc-100 selection:bg-blue-100 selection:text-blue-900">
       
@@ -925,32 +970,43 @@ function App() {
           ========================================= */}
           <div ref={resultadosRef} className="bg-white dark:bg-zinc-900 p-6 sm:p-8 rounded-2xl border border-zinc-200 dark:border-zinc-700 shadow-sm mb-12">
             
-            <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-4 mb-8">
-              <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+            {/* ENCABEZADO DE RESULTADOS CORREGIDO */}
+            <div className="flex flex-col md:flex-row items-start justify-between border-b border-zinc-100 dark:border-zinc-800 pb-4 mb-8 gap-4">
+              <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mt-1">
                 {resultados ? "Resultados del Análisis" : "Visor de Función"}
               </h2>
+              
               {resultados && (
-                <div className="max-w-full md:max-w-[70%] bg-green-50 text-green-700 px-4 py-2 rounded-xl text-sm font-semibold border border-green-200">
-                  {obtenerRaicesMostradas(resultados).length > 1 ? (
+                <div className="w-full md:max-w-[70%] bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 px-4 py-3 rounded-xl text-sm font-semibold border border-green-200 dark:border-green-900/30 shadow-sm">
+                  {todasLasRaices.length > 1 ? (
                     <>
-                      <div className="mb-1">Raíces halladas ({obtenerRaicesMostradas(resultados).length})</div>
-                      <div className="flex flex-wrap gap-1">
-                        {obtenerRaicesMostradas(resultados).map((r, i) => (
-                          <span key={`${r}-${i}`} className="font-mono text-xs px-2 py-0.5 rounded-md bg-green-100 border border-green-200">
+                      <div className="mb-2 flex items-center justify-between">
+                        <span>Raíces halladas ({todasLasRaices.length})</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1 items-center">
+                        {raicesVisibles.map((r, i) => (
+                          <span key={`${r}-${i}`} className="font-mono text-xs px-2 py-0.5 rounded-md bg-green-100 dark:bg-green-900/40 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-100">
                             {r.toFixed(6)}
                           </span>
                         ))}
+                        
+                        {!mostrarTodasRaices && todasLasRaices.length > limiteRaices && (
+                          <span className="text-[10px] text-green-600 font-bold italic ml-1">
+                            ... (+{todasLasRaices.length - limiteRaices} más)
+                          </span>
+                        )}
                       </div>
                     </>
                   ) : (
-                    <>
-                      Raíz hallada: <span className="font-mono">{obtenerRaizMostrada(resultados)?.toFixed(7) ?? '-'}</span>
-                    </>
+                    <div className="py-1">
+                      Raíz hallada: <span className="font-mono ml-1 bg-green-100 px-2 py-0.5 rounded border border-green-200">
+                        {obtenerRaizMostrada(resultados)?.toFixed(7) ?? '-'}
+                      </span>
+                    </div>
                   )}
                 </div>
               )}
             </div>
-
             <div className="mb-10">
               <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                 <p className="text-sm text-zinc-500 dark:text-zinc-300">
@@ -987,19 +1043,27 @@ function App() {
                 <div className="mb-4 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-4 py-3">
                   <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-100 mb-2">Seleccionar raíz para el paso a paso</p>
                   <div className="flex flex-wrap gap-2">
-                    {obtenerRaicesMostradas(resultados).map((r, idx) => (
-                      <button
-                        key={`raiz-btn-${idx}`}
-                        onClick={() => {
-                          setIndiceRaizActiva(idx);
-                          setPasoActual(0);
-                          setReproduccionActiva(false);
-                        }}
-                        className={`px-3 py-1.5 rounded-lg border text-xs font-mono transition-colors ${indiceRaizActiva === idx ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-200 border-zinc-300 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700'}`}
-                      >
-                        r{idx + 1}: {r.toFixed(6)}
-                      </button>
-                    ))}
+                    <div className="flex flex-wrap gap-2">
+                      {raicesVisibles.map((r, idx) => (
+                        <button
+                          key={`raiz-btn-${idx}`}
+                          onClick={() => hacerZoomEnRaiz(idx)}
+                          className={`px-3 py-1.5 rounded-lg border text-xs font-mono transition-colors ${indiceRaizActiva === idx ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-200 border-zinc-300 dark:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700'}`}
+                        >
+                          r{idx + 1}: {r.toFixed(6)}
+                        </button>
+                      ))}
+
+                      {/* BOTÓN MOSTRAR MÁS RAÍCES */}
+                      {todasLasRaices.length > limiteRaices && (
+                        <button
+                          onClick={() => setMostrarTodasRaices(!mostrarTodasRaices)}
+                          className="px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-semibold hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                        >
+                          {mostrarTodasRaices ? 'Ocultar' : `Mostrar más (+${todasLasRaices.length - limiteRaices})`}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -1070,8 +1134,25 @@ function App() {
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={modoOscuro ? "#3f3f46" : "#e4e4e7"} />
-                    <XAxis dataKey="x" type="number" domain={dominioX || ['auto', 'auto']} stroke={modoOscuro ? "#a1a1aa" : "#a1a1aa"} tick={{fill: modoOscuro ? '#d4d4d8' : '#71717a', fontSize: 12}} />
-                    <YAxis dataKey="fx" type="number" stroke={modoOscuro ? "#a1a1aa" : "#a1a1aa"} tick={{fill: modoOscuro ? '#d4d4d8' : '#71717a', fontSize: 12}} domain={obtenerDominioYVisible()} />
+                    <XAxis 
+                      dataKey="x" 
+                      type="number" 
+                      domain={dominioX || ['auto', 'auto']} 
+                      allowDataOverflow={true} 
+                      stroke={modoOscuro ? "#a1a1aa" : "#a1a1aa"} 
+                      tick={{fill: modoOscuro ? '#d4d4d8' : '#71717a', fontSize: 12}} 
+                      tickFormatter={(val) => Number.isInteger(val) ? val : Number(val.toFixed(2))} 
+                    />
+
+                    <YAxis 
+                      dataKey="fx" 
+                      type="number" 
+                      allowDataOverflow={true}
+                      stroke={modoOscuro ? "#a1a1aa" : "#a1a1aa"} 
+                      tick={{fill: modoOscuro ? '#d4d4d8' : '#71717a', fontSize: 12}} 
+                      domain={obtenerDominioYVisible()} 
+                      tickFormatter={(val) => Number.isInteger(val) ? val : Number(val.toFixed(2))}
+                    />
                     <Tooltip contentStyle={{ borderRadius: '12px', border: modoOscuro ? '1px solid #3f3f46' : '1px solid #e4e4e7', backgroundColor: modoOscuro ? '#18181b' : '#ffffff' }} labelStyle={{ fontWeight: 'bold', color: modoOscuro ? '#f4f4f5' : '#18181b' }} formatter={(value, name) => [value, name === 'fx' ? 'f(x)' : 'Punto Calculado']} />
                     
                     {(metodo === 'biseccion' || metodo === 'regulafalsi') && obtenerIteracionActual()?.a !== undefined && obtenerIteracionActual()?.b !== undefined && (
@@ -1103,7 +1184,13 @@ function App() {
                     )}
 
                     {obtenerMarcadoresRaices().length > 0 && (
-                      <Scatter data={obtenerMarcadoresRaices()} dataKey="fx" fill="#22c55e" shape="circle" isAnimationActive={false} />
+                      <Scatter 
+                        data={obtenerMarcadoresRaices()} 
+                        dataKey="fx" 
+                        fill={modoOscuro ? "#4ade80" : "#22c55e"} // Verde más claro/brillante para el modo oscuro
+                        shape="circle" 
+                        isAnimationActive={false} 
+                      />
                     )}
                     
                     {obtenerPuntosIteracionVisibles().length > 0 && (
@@ -1133,7 +1220,7 @@ function App() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-zinc-100 dark:divide-zinc-700">
-                      {obtenerIteracionesActivas().map((fila, idx) => (
+                      {iteracionesVisibles.map((fila, idx) => (
                         <tr key={idx} className={`${idx === pasoActual ? 'bg-blue-50 dark:bg-blue-950/20' : 'hover:bg-zinc-50/50 dark:hover:bg-zinc-800/60'} transition-colors`}>
                           {Object.values(fila).map((val, colIdx) => (
                             <td key={colIdx} className={`px-6 py-3 font-mono ${typeof val === 'number' ? 'text-zinc-600 dark:text-zinc-300' : 'text-zinc-900 dark:text-zinc-100 font-bold'}`}>
@@ -1144,12 +1231,22 @@ function App() {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </div> {/* <-- Cierre del overflow-x-auto */}
+
+                {/* BOTÓN MOSTRAR MÁS ITERACIONES */}
+                {todasLasIteraciones.length > limiteIteraciones && (
+                  <div className="bg-zinc-50 dark:bg-zinc-800 border border-t-0 border-zinc-200 dark:border-zinc-700 p-3 flex justify-center rounded-b-xl -mt-2">
+                    <button
+                      onClick={() => setMostrarTodasIteraciones(!mostrarTodasIteraciones)}
+                      className="text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+                    >
+                      {mostrarTodasIteraciones ? 'Mostrar menos' : `Mostrar todas las iteraciones (${todasLasIteraciones.length})`}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
-
           </div>
-
         </section>
       </main>
     </div>
